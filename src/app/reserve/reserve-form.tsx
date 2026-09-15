@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 
 import { reserve, type ReserveState } from "@/app/actions/reservations";
 import type { Machine } from "@/db/schema";
-import { toLocalInputValue } from "@/lib/time";
+import { toEasternInputValue, easternInputValueToDate } from "@/lib/time";
 
 const inputClass =
   "rounded-lg border border-tint bg-cream px-3 py-2 text-base outline-none focus:border-amber focus:ring-2 focus:ring-gold/40";
 
-function toIsoOrEmpty(localValue: string): string {
-  const d = new Date(localValue);
+function toIsoOrEmpty(easternLocalValue: string): string {
+  const d = easternInputValueToDate(easternLocalValue);
   return Number.isNaN(d.getTime()) ? "" : d.toISOString();
 }
 
@@ -25,8 +25,8 @@ export function ReserveForm({ machines }: { machines: Machine[] }) {
   const now = new Date();
   const defaultStart = new Date(now.getTime() + 30 * 60_000);
   const defaultEnd = new Date(defaultStart.getTime() + 60 * 60_000);
-  const [startTime, setStartTime] = useState(toLocalInputValue(defaultStart));
-  const [endTime, setEndTime] = useState(toLocalInputValue(defaultEnd));
+  const [startTime, setStartTime] = useState(toEasternInputValue(defaultStart));
+  const [endTime, setEndTime] = useState(toEasternInputValue(defaultEnd));
 
   const error = state && "error" in state ? state.error : null;
 
@@ -54,17 +54,18 @@ export function ReserveForm({ machines }: { machines: Machine[] }) {
 
       {/*
         The visible inputs are plain datetime-local strings with no timezone
-        (e.g. "2026-09-13T08:08") — `new Date(...)` on the *server* would parse
-        that as local time in the server's own timezone (UTC on Vercel), not
-        the officer's. So we convert to a real Date here in the browser, where
-        `new Date(...)` correctly uses the officer's timezone, and submit an
-        unambiguous ISO string (with "Z") through hidden fields instead.
+        (e.g. "2026-09-13T08:08"). We deliberately treat that string as a
+        wall-clock time *in Eastern Time* — not the browser's or server's
+        timezone — since the machines are physically in Princeton. Submit an
+        unambiguous ISO string (with "Z") through hidden fields instead, so
+        `new Date(...)` on the server reconstructs the correct instant no
+        matter what timezone the server itself runs in.
       */}
       <input type="hidden" name="startTime" value={toIsoOrEmpty(startTime)} />
       <input type="hidden" name="endTime" value={toIsoOrEmpty(endTime)} />
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Start</span>
+        <span className="font-medium">Start (Eastern Time)</span>
         <input
           type="datetime-local"
           required
@@ -75,7 +76,7 @@ export function ReserveForm({ machines }: { machines: Machine[] }) {
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">End</span>
+        <span className="font-medium">End (Eastern Time)</span>
         <input
           type="datetime-local"
           required
