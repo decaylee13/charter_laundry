@@ -59,16 +59,33 @@ export function toEasternInputValue(d: Date): string {
  * instant (Date) it refers to — regardless of what timezone this code
  * happens to be running in (browser or server).
  *
- * Standard trick: read the naive string as if it were UTC, see what that
- * instant reads as when formatted in Eastern Time, and shift by the
- * difference. Works across the EST/EDT boundary automatically.
+ * Trick: read the naive string as if it were UTC (an arbitrary but valid
+ * anchor instant), see what that instant reads as when formatted in Eastern
+ * Time, and shift by the difference between the two. The Eastern reading is
+ * turned back into a timestamp with `Date.UTC` (never `new Date(string)`),
+ * so nothing here depends on the runtime's own local timezone — otherwise
+ * this function would silently give a different, wrong answer in the
+ * browser (device timezone) than on the server (UTC on Vercel).
  */
 export function easternInputValueToDate(value: string): Date {
   const utcGuess = new Date(`${value}Z`);
   if (Number.isNaN(utcGuess.getTime())) return utcGuess;
 
-  const easternReading = utcGuess.toLocaleString("en-US", { timeZone: TIME_ZONE });
-  const asIfLocal = new Date(easternReading);
-  const diff = utcGuess.getTime() - asIfLocal.getTime();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(utcGuess);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? "0");
+
+  const easternReadingAsUtc = Date.UTC(
+    get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"),
+  );
+  const diff = utcGuess.getTime() - easternReadingAsUtc;
   return new Date(utcGuess.getTime() + diff);
 }
